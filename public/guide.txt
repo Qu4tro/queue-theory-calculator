@@ -1,0 +1,424 @@
+# Queueing Theory Calculator URL Guide for LLMs
+
+Use this document to create shareable URLs for the Queueing Theory Calculator.
+
+Live app base URL:
+
+https://qu4tro.github.io/queue-theory-calculator/
+
+URL shape:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=<model>&<input>=<value>&...
+
+Build URLs with standard query strings. Parameter names are case-sensitive. Use
+plain decimal numbers, not labels, units, commas, or percent signs. URL-encode
+spaces in custom terms as `%20` or `+`.
+
+## Fast Recipe
+
+1. Choose the model.
+2. Choose the time unit: omit `time_unit` for seconds, or use
+   `time_unit=minutes` or `time_unit=hours`.
+3. Convert rates and times into the selected time unit.
+   - If `time_unit=seconds`, `lambda=5` means 5 arrivals per second.
+   - If `time_unit=minutes`, `mu=12` means one server completes 12 per minute.
+   - If the prompt gives a mean service time, use `mu = 1 / mean_service_time`.
+   - If the prompt gives mean patience, use `theta = 1 / mean_patience`.
+4. Add one supported input set for that model. Prefer the direct/base set when
+   possible.
+5. Add terminology parameters only for display words, not for math.
+6. Do not include unknown values. Do not include outputs unless the prompt asks
+   to solve backward from that output.
+
+## Model Selection
+
+Always include `model` unless you intentionally want the app to infer it.
+
+Supported `model` values:
+
+- `mm1`: M/M/1. One exponential-service server, unlimited queue, no abandonment
+  or blocking. Use for one worker/server.
+- `mms`: M/M/s. Multiple identical exponential-service servers sharing one
+  unlimited queue.
+- `erlang-a`: M/M/s+M. Multiple exponential-service servers with abandonment
+  while waiting. Use for hangups, cancellations, timeouts, or impatience.
+- `ggs`: G/G/s approximation. Multiple servers with arrival and service
+  variability. Use when you know arrival SCV (`ca2`) and service SCV (`cs2`).
+- `mg1`: M/G/1. One server with configurable service-time variability
+  (`serviceScv`).
+- `md1`: M/D/1. One server with deterministic/fixed service time.
+- `mmsk`: M/M/s/K. Finite total capacity. Arrivals are blocked when the system
+  is full. `K` includes customers in service and waiting.
+- `mminf`: M/M/infinity. Infinite parallel service, no waiting.
+
+Simple choice rules:
+
+- "one worker", "single server", "one processor": use `mm1`, unless service
+  time is deterministic (`md1`) or service variability is given (`mg1`).
+- "N workers", "N agents", "thread pool", "parallel servers": use `mms`.
+- "buffer size", "queue capacity", "drop when full", "blocked arrivals": use
+  `mmsk`.
+- "users leave", "callers hang up", "job times out while waiting": use
+  `erlang-a`.
+- "bursty arrivals", "SCV", "coefficient of variation", "non-exponential": use
+  `ggs` for multiple servers or `mg1` for one server.
+- "no waiting", "infinite capacity", "every request starts immediately": use
+  `mminf`.
+
+## Query Parameters
+
+Math input parameters:
+
+- `lambda`: arrival rate. Positive rate per selected `time_unit`.
+- `mu`: service rate per server. Positive rate per selected `time_unit`.
+- `s`: number of servers. Integer >= 1. Ignored for `mm1`, `mg1`, and `md1`.
+- `K`: total system capacity for `mmsk`. Integer >= `s`.
+- `theta`: abandonment/patience expiration rate for `erlang-a`. Positive rate.
+- `serviceScv`: service-time squared coefficient of variation for `mg1`.
+- `ca2`: arrival SCV for `ggs`. Defaults to 1 if omitted in `ggs`.
+- `cs2`: service SCV for `ggs`. Defaults to 1 if omitted in `ggs`.
+- `a`: offered load (`lambda / mu`) for `mminf`.
+- `offeredRho`: offered traffic ratio (`lambda / (s * mu)`) for `erlang-a`.
+- `lambdaEffective`: accepted arrival rate after blocking for `mmsk`.
+- `Ls`: mean number in service for `erlang-a`.
+- `L`: mean number in system.
+- `Lq`: mean number in queue.
+- `W`: mean time in system, in selected `time_unit`.
+- `Wq`: mean waiting time in queue, in selected `time_unit`.
+- `rho`: server utilization / traffic intensity, from 0 to 1 for stable finite
+  queues. Use this instead of `Pbusy`.
+- `P0`: empty-system probability, from 0 to 1.
+- `Pwait`: delay/wait probability for arrivals that enter the system, from 0 to 1.
+- `abandonRate`: abandonment rate for `erlang-a`.
+- `throughput`: service completion rate for `erlang-a`.
+- `Pabandon`: probability an arrival abandons for `erlang-a`.
+- `Pserved`: probability an arrival is served for `erlang-a`.
+- `Pblock`: blocking probability for `mmsk`.
+
+Important:
+
+- Do not use `Pbusy` in URLs. The app does not read it as a URL input. Use
+  `rho` instead.
+- Probabilities must be decimals: use `0.7`, not `70%`.
+- `s` and `K` must be whole numbers. Formula calculations allow values up to
+  10000.
+- `K` must be at least `s`.
+- Extra supplied metrics are treated as constraints. If they disagree with the
+  solved queue, the app shows an inconsistent result.
+
+Display/control parameters:
+
+- `time_unit`: `seconds`, `minutes`, or `hours`. Default is `seconds`.
+- `speed`: simulation speed. Allowed values: `0.25`, `0.5`, `1`, `2`, `5`,
+  `10`, `25`.
+- `loss`: only for `model=mmsk`. Use `loss=1` for a pure loss queue where
+  `K = s`; omit `K` in that case.
+- `term_preset`: terminology preset. See "Terminology" below.
+- `term_customer`, `term_system`, `term_queue`, `term_server`,
+  `term_arrival`: custom display terms. Max 24 characters after cleanup.
+
+## Supported Input Sets by Model
+
+Each set below is a minimum useful set. You may add extra compatible metrics to
+check consistency, but do not add guessed outputs.
+
+### M/M/1 (`model=mm1`)
+
+One server is implied. Omit `s`.
+
+Direct sets:
+
+- `lambda` + `mu`
+- `lambda` + `rho`
+- `mu` + `rho`
+
+Closed-form inverse sets:
+
+- `lambda` + one of `W`, `L`, `Wq`, `Lq`, `P0`, `Pwait`
+- `mu` + one of `W`, `L`, `Wq`, `Lq`, `P0`, `Pwait`
+- `rho` + one of `W`, `Wq`
+- `L` + `W`
+- `W` + `Wq`
+- `Lq` + `Wq`
+
+Use `mm1` for a single Python worker if service times are roughly exponential:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=mm1&lambda=2&mu=3&term_preset=web-service&term_server=Python%20worker&term_customer=Task&term_arrival=Task&term_queue=Task%20queue
+
+### M/M/s (`model=mms`)
+
+Use for a shared queue feeding multiple identical servers.
+
+Direct sets:
+
+- `lambda` + `mu` + `s`
+- `lambda` + `rho` + `s`
+- `mu` + `rho` + `s`
+
+Solve for the missing rate with a known server count:
+
+- `lambda` + `s` + one target from `L`, `Lq`, `Wq`, `P0`, `Pwait`, `W`
+- `mu` + `s` + one target from `L`, `Lq`, `W`, `Wq`, `P0`, `Pwait`
+
+Solve for both rates with a known server count:
+
+- `rho` + `s` + one time target from `W`, `Wq`
+- one dimensionless target from `L`, `Lq`, `P0`, `Pwait` + `s` + one time
+  target from `W`, `Wq`
+- `s` + `W` + `Wq`
+
+Advanced server-count search:
+
+- If the prompt asks "how many servers/workers are needed", use `model=mms` and
+  omit `s`. Include enough information to identify an integer server count,
+  usually `lambda` + `mu` + one target from `L`, `Lq`, `W`, `Wq`, `P0`,
+  `Pwait`.
+- This can be ambiguous. Prefer explicit `s` unless the prompt asks to solve for
+  `s`.
+
+Example worker pool:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=mms&lambda=8&mu=3&s=4&term_preset=web-service
+
+### M/M/s/K (`model=mmsk`)
+
+Use for finite total capacity and blocking. `K` includes service plus waiting.
+For M/M/s/K, `Pwait` is conditional on accepted arrivals; `Pblock` is
+the separate attempted-arrival blocking probability.
+
+Direct set:
+
+- `lambda` + `mu` + `s` + `K`
+
+Pure loss queue where no one waits:
+
+- `lambda` + `mu` + `s` + `loss=1`
+- Do not include `K`; the app sets `K = s`.
+
+Solve for a missing rate with fixed `s` and `K`:
+
+- `lambda` + `s` + `K` + one shape target
+- `mu` + `s` + `K` + one shape target
+- Shape targets: `L`, `Lq`, `rho`, `P0`, `Pblock`, `Pwait`
+
+Solve for both rates with fixed `s` and `K`:
+
+- one shape target + one scale target + `s` + `K`
+- Shape targets: `L`, `Lq`, `rho`, `P0`, `Pblock`, `Pwait`
+- Scale targets: `lambdaEffective`, `W`, `Wq`
+
+Advanced finite search:
+
+- The solver can search for a missing `s` if `K` is fixed, or a missing `K` if
+  `s` is fixed, when finite-capacity derived metrics are supplied.
+- This can be ambiguous. Prefer explicit `s` and `K` for URL generation.
+
+Finite buffer example:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=mmsk&lambda=40&mu=15&s=3&K=8&time_unit=minutes
+
+Pure loss example:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=mmsk&lambda=40&mu=15&s=3&loss=1&time_unit=minutes
+
+### M/M/infinity (`model=mminf`)
+
+Use for no-wait systems with unlimited parallel service. Do not include `s`,
+`K`, `rho`, `Lq`, `Wq`, `Pwait`, `theta`, `serviceScv`, `ca2`, or `cs2`.
+
+Supported sets:
+
+- `lambda` + `mu`
+- `lambda` + `W`
+- `lambda` + `a`
+- `lambda` + `L`
+- `lambda` + `P0`
+- `mu` + `a`
+- `mu` + `L`
+- `mu` + `P0`
+- `L` + `W`
+- `W` + `a`
+- `W` + `P0`
+
+Example:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=mminf&lambda=100&mu=20&time_unit=seconds
+
+### M/G/1 (`model=mg1`)
+
+One server is implied. Omit `s`. Include `serviceScv` unless you are asking the
+solver to infer service variability from known rates and a mean metric.
+
+Direct sets:
+
+- `lambda` + `mu` + `serviceScv`
+- `lambda` + `rho` + `serviceScv`
+- `mu` + `rho` + `serviceScv`
+
+Solve for service variability:
+
+- `lambda` + `mu` + one target from `L`, `Lq`, `W`, `Wq`
+- The inferred `serviceScv` must be non-negative.
+
+Solve for a missing rate:
+
+- `lambda` + `serviceScv` + one of `rho`, `P0`, `Pwait`, `L`, `Lq`, `W`, `Wq`
+- `mu` + `serviceScv` + one of `rho`, `P0`, `Pwait`, `L`, `Lq`, `W`, `Wq`
+
+Solve for both rates:
+
+- `serviceScv` + `rho` + one of `W`, `Wq`
+- `serviceScv` + `P0` + one of `W`, `Wq`
+- `serviceScv` + `Pwait` + one of `W`, `Wq`
+
+Example:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=mg1&lambda=6&mu=8&serviceScv=2
+
+### M/D/1 (`model=md1`)
+
+One server is implied. Service time is deterministic, so `serviceScv` is fixed
+at 0 and should be omitted.
+
+Supported sets are the same as M/G/1 except remove `serviceScv`:
+
+- `lambda` + `mu`
+- `lambda` + `rho`
+- `mu` + `rho`
+- `lambda` + one target from `L`, `Lq`, `W`, `Wq`
+- `mu` + one target from `L`, `Lq`, `W`, `Wq`
+- `rho` + one of `W`, `Wq`
+- `P0` + one of `W`, `Wq`
+- `Pwait` + one of `W`, `Wq`
+
+Example:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=md1&lambda=6&mu=8
+
+### G/G/s (`model=ggs`)
+
+Use for an Allen-Cunneen approximation with variability. Include `s`.
+`ca2` and `cs2` default to 1 if omitted, but include them when the prompt gives
+variability.
+
+Direct sets:
+
+- `lambda` + `mu` + `s` + optional `ca2` + optional `cs2`
+- `lambda` + `rho` + `s` + optional `ca2` + optional `cs2`
+- `mu` + `rho` + `s` + optional `ca2` + optional `cs2`
+
+Solve for the missing rate:
+
+- `lambda` + `s` + `ca2` + `cs2` + one target from `L`, `Lq`, `Wq`
+- `mu` + `s` + `ca2` + `cs2` + one target from `L`, `Lq`, `W`, `Wq`
+
+Solve for both rates:
+
+- `rho` + `s` + `ca2` + `cs2` + one of `W`, `Wq`
+
+Do not use `P0` or `Pwait` as inverse targets for G/G/s. They are not
+determined by the approximation unless `ca2=1` and `cs2=1`, in which case
+`mms` is usually the clearer model.
+
+Example:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=ggs&lambda=20&mu=7&s=4&ca2=1.8&cs2=0.6
+
+### Erlang A / M/M/s+M (`model=erlang-a`)
+
+Use when waiting customers can abandon, cancel, hang up, or time out.
+
+Direct set:
+
+- `lambda` + `mu` + `s` + `theta`
+
+Use offered traffic ratio:
+
+- `lambda` + `offeredRho` + `s` + `theta`
+- `mu` + `offeredRho` + `s` + `theta`
+
+Solve for missing `mu`:
+
+- `lambda` + `s` + `theta` + one target from `L`, `Lq`, `W`, `Wq`, `P0`,
+  `Pwait`, `Pabandon`, `rho`, `throughput`
+
+Solve for missing `lambda`:
+
+- `mu` + `s` + `theta` + one target from `L`, `Lq`, `W`, `Wq`, `P0`, `Pwait`,
+  `Pabandon`, `rho`, `throughput`
+
+Solve for missing `theta`:
+
+- `lambda` + `mu` + `s` + one target from `Lq`, `Wq`, `Pabandon`,
+  `abandonRate`
+
+`Pserved`, `Ls`, and `Pbusy` should not be used as the only inverse target in a
+URL. Use `Pabandon` instead of `Pserved`, and use `rho` instead of `Pbusy`.
+
+Example call center:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=erlang-a&lambda=30&mu=2&s=18&theta=0.3333333333&time_unit=minutes&term_preset=call-center
+
+## Terminology
+
+Terminology only changes labels in the app and simulation. It does not change
+the math.
+
+Use `term_preset` for common domains:
+
+- `default`: Customer, System, Queue, Server, Arrival
+- `call-center`: Caller, Contact center, Hold queue, Agent, Call
+- `retail-checkout`: Shopper, Store, Checkout line, Cashier, Shopper
+- `bank-branch`: Visitor, Branch, Line, Teller, Visitor
+- `clinic`: Patient, Clinic, Waiting room, Clinician, Check-in
+- `web-service`: Request, Web service, Request queue, Worker, Request
+- `restaurant`: Party, Restaurant, Waitlist, Table, Party
+
+Custom terms override the selected preset:
+
+- `term_customer`: the entity being served, e.g. `Job`, `Request`, `Patient`
+- `term_system`: the whole system, e.g. `Worker pool`, `Clinic`
+- `term_queue`: the waiting area, e.g. `Job queue`, `Waiting room`
+- `term_server`: the service unit, e.g. `Python worker`, `Agent`
+- `term_arrival`: arrival event/entity, e.g. `Job`, `Call`, `Check-in`
+
+Example custom Python worker terms:
+
+https://qu4tro.github.io/queue-theory-calculator/?model=mms&lambda=20&mu=7&s=4&term_preset=web-service&term_server=Python%20worker&term_customer=Job&term_arrival=Job&term_queue=Job%20queue&term_system=Worker%20pool
+
+## Unit Conversion Rules
+
+Use one time unit consistently per URL.
+
+Examples:
+
+- Prompt: "10 jobs per second arrive, each worker completes 4 jobs per second."
+  Use `time_unit=seconds&lambda=10&mu=4` or omit `time_unit`.
+- Prompt: "600 jobs per minute arrive, each worker averages 5 seconds per job."
+  Use `time_unit=seconds&lambda=10&mu=0.2` because 600/min = 10/sec and
+  1/5 sec = 0.2/sec.
+- Prompt: "30 calls per minute, average service time 30 seconds, average
+  patience 3 minutes." Use
+  `time_unit=minutes&lambda=30&mu=2&theta=0.3333333333`.
+
+For probabilities:
+
+- 70% utilization -> `rho=0.7`
+- 5% blocking -> `Pblock=0.05`
+- 12% abandonment -> `Pabandon=0.12`
+
+## URL Generation Checklist
+
+Before returning a URL:
+
+- Include the base URL.
+- Include `model`.
+- Include one complete supported input set for that model.
+- Use `rho`, not `Pbusy`.
+- Use decimal probabilities.
+- Use `time_unit` if the prompt is not naturally in seconds.
+- Convert mean service time to `mu`.
+- Convert mean patience to `theta` for `erlang-a`.
+- For `mmsk`, include either `K` or `loss=1`.
+- For `mminf`, do not include waiting metrics or finite-server metrics.
+- URL-encode custom terminology.

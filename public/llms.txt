@@ -1,0 +1,40 @@
+# Queueing Theory Calculator
+
+> Queueing Theory Calculator is a static browser app for exploring queueing systems and generating shareable URLs. It solves M/M/1, M/M/s, Erlang A (M/M/s+M), G/G/s, M/G/1, M/D/1, M/M/s/K, and M/M/infinity models from direct or inverse metric inputs.
+
+Use the URL generation guide when constructing calculator links. Query parameter names are case-sensitive, rates and times use the selected `time_unit`, probabilities are decimals, and `rho` is the URL input for utilization rather than `Pbusy`.
+
+Important notes:
+
+- Live app base URL: `https://qu4tro.github.io/queue-theory-calculator/`
+- Share URL shape: `https://qu4tro.github.io/queue-theory-calculator/?model=<model>&<input>=<value>&...`
+- Supported `model` values: `mm1`, `mms`, `erlang-a`, `ggs`, `mg1`, `md1`, `mmsk`, and `mminf`.
+- Common display and control parameters: `time_unit`, `speed`, `loss`, `term_preset`, `term_customer`, `term_system`, `term_queue`, `term_server`, and `term_arrival`.
+- For M/M/s/K, include either `K` or `loss=1`. For M/M/infinity, omit waiting and finite-server metrics.
+
+## Docs
+
+- [URL generation guide](https://qu4tro.github.io/queue-theory-calculator/guide.txt): Complete parameter reference, model choice rules, supported input sets, unit conversion rules, and examples for LLM-generated links.
+- [Project README](https://github.com/Qu4tro/queue-theory-calculator/blob/main/README.md): Feature summary, local development commands, build command, and license.
+
+## App
+
+- [Live calculator](https://qu4tro.github.io/queue-theory-calculator/): Interactive calculator and visualization UI.
+- [Source repository](https://github.com/Qu4tro/queue-theory-calculator): TypeScript source code, workflows, and project history.
+
+## Source
+
+- [Queue model types](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/queue/types.ts): Supported model identifiers, metric identifiers, solver options, and result shapes.
+- [Queue solver](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/queue/solver.ts): Solver entry point and model dispatch.
+- [M/M/s formulas](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/queue/mm-s.ts): Infinite-capacity M/M/1 and M/M/s calculations.
+- [M/M/s/K formulas](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/queue/mm-s-k.ts): Finite-capacity queue and blocking calculations.
+- [Erlang A formulas](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/queue/erlang-a.ts): M/M/s+M abandonment model calculations.
+- [G/G/s approximation](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/queue/gg-s.ts): Allen-Cunneen-style multi-server variability approximation.
+- [M/G/1 formulas](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/queue/mg-1.ts): Single-server service-variability calculations.
+- [UI state and URL handling](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/ui/app.ts): Query-string parsing, share URLs, terminology, model controls, and view state.
+- [Metric metadata](https://github.com/Qu4tro/queue-theory-calculator/blob/main/src/ui/metrics.ts): Metric IDs, symbols, value kinds, and UI grouping.
+
+## Optional
+
+- [llms.txt standard](https://llmstxt.org/index.md): External proposal describing this Markdown file format.
+- [MIT license](https://github.com/Qu4tro/queue-theory-calculator/blob/main/LICENSE): License for the project.

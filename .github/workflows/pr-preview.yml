@@ -1,0 +1,64 @@
+name: PR Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+
+permissions:
+  contents: write
+  deployments: write
+  issues: write
+  pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Deploy PR preview
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup project
+        uses: ./.github/actions/setup-project
+        with:
+          install: ${{ github.event.action != 'closed' }}
+
+      - name: Check formatting and lint
+        if: github.event.action != 'closed'
+        run: pnpm check
+
+      - name: Build static site
+        if: github.event.action != 'closed'
+        run: |
+          pnpm exec tsc --noEmit
+          pnpm exec vite build --base ./
+
+      - name: Disable Jekyll
+        if: github.event.action != 'closed'
+        run: touch dist/.nojekyll
+
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: dist
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: auto
+          wait-for-pages-deployment: true
+          comment: true
+          qr-code: false

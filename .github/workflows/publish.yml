@@ -1,0 +1,128 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan publish
+    runs-on: ubuntu-latest
+
+    outputs:
+      should_build: ${{ steps.plan.outputs.should_build }}
+      deploy_pages: ${{ steps.plan.outputs.deploy_pages }}
+      release_tag: ${{ steps.plan.outputs.release_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Plan publish work
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          should_build=false
+          deploy_pages=false
+          release_tag=
+
+          git fetch --force --tags origin
+          git fetch --force origin refs/heads/main:refs/remotes/origin/main
+
+          current_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          main_commit="$(git rev-parse "origin/main^{commit}")"
+
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            if [[ "${GITHUB_EVENT_NAME}" == "push" && -n "$(git tag --points-at "${current_commit}")" ]]; then
+              echo "Tagged main push is handled by the tag run."
+            else
+              should_build=true
+              deploy_pages=true
+            fi
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            should_build=true
+            release_tag="${GITHUB_REF_NAME}"
+
+            if [[ "${current_commit}" == "${main_commit}" ]]; then
+              deploy_pages=true
+            fi
+          fi
+
+          {
+            echo "should_build=${should_build}"
+            echo "deploy_pages=${deploy_pages}"
+            echo "release_tag=${release_tag}"
+          } >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    needs: plan
+    if: needs.plan.outputs.should_build == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup project
+        uses: ./.github/actions/setup-project
+
+      - name: Check formatting and lint
+        run: pnpm check
+
+      - name: Build static site
+        run: |
+          pnpm exec tsc --noEmit
+          pnpm exec vite build --base ./
+
+      - name: Disable Jekyll
+        run: touch dist/.nojekyll
+
+      - name: Deploy main to GitHub Pages
+        if: needs.plan.outputs.deploy_pages == 'true'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: dist
+          clean: true
+          clean-exclude: pr-preview
+          force: false
+          commit-message: Deploy main to GitHub Pages
+
+      - name: Create release archive
+        if: needs.plan.outputs.release_tag != ''
+        id: archive
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.plan.outputs.release_tag }}
+        run: |
+          archive="${{ github.event.repository.name }}-${RELEASE_TAG}.zip"
+          (cd dist && zip -r "../${archive}" .)
+          echo "archive=${archive}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        if: needs.plan.outputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.release_tag }}
+          files: ${{ steps.archive.outputs.archive }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
